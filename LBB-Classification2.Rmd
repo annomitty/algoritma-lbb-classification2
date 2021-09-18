@@ -1,0 +1,195 @@
+---
+title: "LBB-Classification2"
+author: "annomitty"
+date: "9/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+> CALL LIBRARY
+
+```{r}
+library(caTools)
+library(GGally)
+library(caret)
+library(e1071)
+library(randomForest)
+library(partykit)
+```
+> LOAD DATA
+
+```{r}
+bank <- read.csv2("bank.csv")
+glimpse(bank)
+colSums(is.na(bank))
+```
+Prediktor dan Penjelasannya :
+1 - age (numeric)
+2 - job : type of job (categorical: 'admin.','blue-collar','entrepreneur','housemaid','management','retired','self-employed','services','student','technician','unemployed','unknown')
+3 - marital : marital status (categorical: 'divorced','married','single','unknown'; note: 'divorced' means divorced or widowed)
+4 - education (categorical: 'basic.4y','basic.6y','basic.9y','high.school','illiterate','professional.course','university.degree','unknown')
+5 - default: has credit in default? (categorical: 'no','yes','unknown')
+6 - housing: has housing loan? (categorical: 'no','yes','unknown')
+7 - loan: has personal loan? (categorical: 'no','yes','unknown')
+# related with the last contact of the current campaign:
+8 - contact: contact communication type (categorical: 'cellular','telephone')
+9 - month: last contact month of year (categorical: 'jan', 'feb', 'mar', ..., 'nov', 'dec')
+10 - day_of_week: last contact day of the week (categorical: 'mon','tue','wed','thu','fri')
+11 - duration: last contact duration, in seconds (numeric). Important note: this attribute highly affects the output target (e.g., if duration=0 then y='no'). Yet, the duration is not known before a call is performed. Also, after the end of the call y is obviously known. Thus, this input should only be included for benchmark purposes and should be discarded if the intention is to have a realistic predictive model.
+# other attributes:
+12 - campaign: number of contacts performed during this campaign and for this client (numeric, includes last contact)
+13 - pdays: number of days that passed by after the client was last contacted from a previous campaign (numeric; 999 means client was not previously contacted)
+14 - previous: number of contacts performed before this campaign and for this client (numeric)
+15 - poutcome: outcome of the previous marketing campaign (categorical: 'failure','nonexistent','success')
+
+Target Variable:
+21 - y - has the client subscribed a term deposit? (binary: 'yes','no')
+
+```{r}
+summary(bank)
+```
+> SPLITTING DATASETS TO TRAINING AND TESTING.
+
+```{r}
+intrain <- sample(nrow(bank), nrow(bank)*0.8)
+```
+
+```{r}
+bank_train <- bank[intrain, ]
+bank_test <- bank[-intrain, ]
+```
+
+```{r}
+dim(bank_train)
+dim(bank_test)
+```
+
+> MODEL -> NAIVE BAYES
+
+```{r}
+model_naive <- naiveBayes(y ~ ., data = bank_train)
+```
+
+```{r}
+bank_test_no_y <- bank_test[1:16]\
+dim(bank_test_no_y)
+```
+```{r}
+pred_naive <- predict(model_naive, newdata = bank_test_no_y)
+```
+
+```{r}
+table_bayes <- table(pred_naive, bank_test$y)
+confusionMatrix(table_bayes)
+```
+DENGAN MENGGUNAKAN NAIVE BAYES ACCURACY MODEL NYA ADALAH SEBESAR 85,6%
+
+> MODEL -> DECISION TREE
+
+```{r}
+bank_train[sapply(bank_train, is.character)] <- lapply(bank_train[sapply(bank_train, is.character)], 
+                                       as.factor)
+  
+```
+
+```{r}
+model_tree <- ctree(y~.,
+                    bank_train,
+                    control = ctree_control(mincriterion=0.8,
+                                             minsplit=0.3,
+                                             minbucket=0.3))
+```
+
+```{r, height=10}
+model_tree
+```
+```{r}
+pred_tree <- predict(model_tree, bank_test_no_y)
+```
+
+```{r}
+table_tree <- table(pred_tree, bank_test$y)
+confusionMatrix(table_tree)
+```
+DENGAN MENGGUNAKAN DECISION TREE MENDAPARKAN ACCURACY 89,5%
+
+> MODEL  -> RANDOM FOREST
+
+```{r}
+bank[sapply(bank, is.character)] <- lapply(bank[sapply(bank, is.character)], 
+                                       as.factor)
+```
+
+```{r}
+bank2 <- bank
+```
+
+
+```{r}
+glimpse(bank2)
+```
+```{r}
+n0_var <- nearZeroVar(bank2)
+bank2 <- bank2[,-n0_var]
+```
+
+```{r}
+head(bank2)
+```
+
+```{r}
+dim(bank2)
+```
+CROSS VALIDATION UNTUK RANDOM FOREST
+
+
+```{r}
+intrain <- sample(nrow(bank2), nrow(bank2)*0.8)
+```
+
+```{r}
+bank2_train <- bank2[intrain, ]
+bank2_test <- bank2[-intrain, ]
+```
+
+```{r}
+bank2_train
+```
+
+
+PEMBUATAN MODEL RDS RANDOM FOREST
+
+```{r}
+#set.seed(123)
+
+#ctrl <- trainControl(method = "repeatedcv",
+                    number = 5, # k-fold
+                    repeats = 3) # repetisi
+#bank2_forest <- train(y ~ .,
+                  data = bank2_train,
+                  method = "rf", # random forest
+                  trControl = ctrl)
+#saveRDS(bank2_forest, "bank2_forest_2.RDS") # simpan model
+```
+
+```{r}
+model_random <- readRDS("bank2_forest_2.RDS")
+```
+
+```{r}
+pred_random <- predict(model_random, bank2_test)
+```
+
+```{r}
+CM_random <- table(pred_random, bank2_test$y)
+confusionMatrix(CM_random)
+```
+DENGAN MENGUNNAKN RANDOM FOREST METHOD MENDAPATKAN AKURASI SEBESAR 89,7%
+
+KESIMPULANNYA:
+ACCURACY NAIVE BAIYES         85,6%
+ACCURACY DECISION TREE        89,5%
+ACCURACY RANDOM FOREST        89,7%
